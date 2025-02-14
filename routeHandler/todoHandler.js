@@ -2,130 +2,121 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const todoSchema = require('../schemas/todoSchema');
-const Todo = new mongoose.model('Todo', todoSchema);
 
-// get all the todos
+// Correct way to define the model
+const Todo = mongoose.model('Todo', todoSchema);
+
+// Get all todos (with status "active")
 router.get('/', async (req, res) => {
-    await Todo.find({ status: "active" }).select({_id: 0, date: 0}) // find all the todos with status active
-        .then((data) => {
-            res.status(200).json({
-                message: 'Todos are fetched successfully',
-                data: data
-            });
-        })
-        .catch((err) => {
-            res.status(500).json({
-                error: "There was an error while getting the todos"
-            });
+    try {
+        const todos = await Todo.find({ status: "active" }).select({ _id: 0, date: 0 });
+        res.status(200).json({
+            message: 'Todos are fetched successfully',
+            data: todos
         });
+    } catch (err) {
+        res.status(500).json({ error: "There was an error while getting the todos" });
+    }
 });
 
-// get a todo by id
+// Get active todos (assuming `findActive()` is a static method in the model)
+router.get('/active', async (req, res) => {
+    try {
+        const data = await Todo.findActive(); // Call static method directly
+        res.status(200).json({
+            message: 'Active todos fetched successfully',
+            data: data
+        });
+    } catch (err) {
+        res.status(500).json({ error: "There was an error while getting active todos"});
+    }
+});
+
+// Get a todo by ID
 router.get('/:id', async (req, res) => {
-    await Todo.find({ _id: req.params.id }).select({_id: 0, date: 0}) // find todo by id
-        .then((data) => {
-            res.status(200).json({
-                message: 'Todo is fetched successfully',
-                data: data
-            });
-        })
-        .catch((err) => {
-            res.status(500).json({
-                error: "There was an error while getting the todo"
-            });
-        });
-});
-
-// post a todo
-router.post('/', async (req, res) => {
-    const newTodo = new Todo(req.body);
-    await newTodo.save()
-        .then(() => {
-            res.status(200).json({
-                message: 'Todo is added successfully',
-            });
-        })
-        .catch((err) => {
-            res.status(500).json({
-                error: "There was an error while adding the todo"
-            });
-        });
-
-});
-
-// post all todo
-router.post('/all', async (req, res) => {
-    Todo.insertMany(req.body)
-        .then(() => {
-            res.status(200).json({
-                message: 'Todos are added successfully',
-            });
-        })
-        .catch((err) => {
-            res.status(500).json({
-                error: "There was an error while adding the todo"
-            });
-        });
-});
-
-// update a todo by id
-router.put('/:id', async (req, res) => {
-    await Todo.updateOne({ _id: req.params.id }, {
-        $set: {
-            status: "active"
+    try {
+        const todo = await Todo.findById(req.params.id).select({ _id: 0, date: 0 });
+        if (!todo) {
+            return res.status(404).json({ error: "Todo not found" });
         }
-    })
-        .then(() => {
-            res.status(200).json({
-                message: 'Todo is updated successfully',
-            });
-        })
-        .catch((err) => {
-            res.status(500).json({
-                error: "There was an error while updating the todo"
-            });
+        res.status(200).json({
+            message: 'Todo fetched successfully',
+            data: todo
         });
+    } catch (err) {
+        res.status(500).json({ error: "There was an error while getting the todo" });
+    }
 });
 
+// Create a new todo
+router.post('/', async (req, res) => {
+    try {
+        const newTodo = new Todo(req.body);
+        await newTodo.save();
+        res.status(201).json({
+            message: 'Todo added successfully',
+            data: newTodo
+        });
+    } catch (err) {
+        res.status(500).json({ error: "There was an error while adding the todo" });
+    }
+});
+
+// Insert multiple todos
+router.post('/all', async (req, res) => {
+    try {
+        await Todo.insertMany(req.body);
+        res.status(201).json({ message: 'Todos added successfully' });
+    } catch (err) {
+        res.status(500).json({ error: "There was an error while adding todos" });
+    }
+});
+
+// Update a todo by ID
+router.put('/:id', async (req, res) => {
+    try {
+        const result = await Todo.updateOne({ _id: req.params.id }, { $set: { status: "active" } });
+        if (result.modifiedCount === 0) {
+            return res.status(404).json({ error: "Todo not found or already active" });
+        }
+        res.status(200).json({ message: 'Todo updated successfully' });
+    } catch (err) {
+        res.status(500).json({ error: "There was an error while updating the todo" });
+    }
+});
+
+// Update a todo by ID using `findByIdAndUpdate`
 router.put('/update/:id', async (req, res) => {
-    await Todo.findByIdAndUpdate(
-        { _id: req.params.id },
-        {
-            $set: {
-                status: "active"
-            }
-        },
-        {
-            new: true,
-            useFindAndModify: false
-        })
-        .then((result) => {
-            console.log(result);
-            res.status(200).json({
-                message: 'Todo is updated successfully',
-            });
-        })
-        .catch((err) => {
-            res.status(500).json({
-                error: "There was an error while updating the todo"
-            });
+    try {
+        const updatedTodo = await Todo.findByIdAndUpdate(
+            req.params.id,
+            { $set: { status: "active" } },
+            { new: true } // Return the updated document
+        );
+        if (!updatedTodo) {
+            return res.status(404).json({ error: "Todo not found" });
+        }
+        res.status(200).json({
+            message: 'Todo updated successfully',
+            data: updatedTodo
         });
+    } catch (err) {
+        res.status(500).json({ error: "There was an error while updating the todo" });
+    }
 });
 
-// delete a todo by id
+// Delete a todo by ID
 router.delete('/:id', async (req, res) => {
-    await Todo.deleteOne({ _id: req.params.id })
-        .then(() => {
-            res.status(200).json({
-                message: 'Todo is deleted successfully',
-            });
-        })
-        .catch((err) => {
-            res.status(500).json({
-                error: "There was an error while deleting the todo"
-            });
-        });
+    try {
+        const result = await Todo.deleteOne({ _id: req.params.id });
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: "Todo not found" });
+        }
+        res.status(200).json({ message: 'Todo deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: "There was an error while deleting the todo" });
+    }
 });
 
-// export the router
+// Export the router
 module.exports = router;
