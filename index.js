@@ -8,8 +8,6 @@ app.use(express.json());
 
 // database connection with mongoose
 mongoose.connect("mongodb://localhost:27017/todo-data", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
 })
     .then(() => console.log('Connected to the database'))
     .catch(err => console.log(err));
