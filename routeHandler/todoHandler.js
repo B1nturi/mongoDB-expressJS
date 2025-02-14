@@ -2,14 +2,21 @@ const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
 const todoSchema = require('../schemas/todoSchema');
+const userSchema = require('../schemas/userSchema');
+const checkLogin = require('../middlewares/checkLogin');
 
 // Correct way to define the model
 const Todo = mongoose.model('Todo', todoSchema);
+const User = mongoose.model('User', userSchema);
 
 // Get all todos (with status "active")
-router.get('/', async (req, res) => {
+router.get('/', checkLogin, async (req, res) => {
     try {
-        const todos = await Todo.find({ status: "active" }).select({ _id: 0, date: 0 });
+        const todos = await Todo.find()
+            .populate('user') // Populate the user field with name and username
+            .select({
+
+            })
         res.status(200).json({
             message: 'Todos are fetched successfully',
             data: todos
@@ -20,7 +27,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get active todos (assuming `findActive()` is a static method in the model)
-router.get('/active', async (req, res) => {
+router.get('/active', checkLogin, async (req, res) => {
     try {
         const data = await Todo.findActive(); // Call static method directly
         res.status(200).json({
@@ -28,7 +35,7 @@ router.get('/active', async (req, res) => {
             data: data
         });
     } catch (err) {
-        res.status(500).json({ error: "There was an error while getting active todos"});
+        res.status(500).json({ error: "There was an error while getting active todos" });
     }
 });
 
@@ -49,10 +56,22 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create a new todo
-router.post('/', async (req, res) => {
+router.post('/', checkLogin, async (req, res) => {
     try {
-        const newTodo = new Todo(req.body);
+        const newTodo = new Todo({
+            ...req.body,
+            user: req.userId // Add the user ID from the request
+        });
         await newTodo.save();
+        await User.updateOne(
+            {
+                _id: req.userId
+            },
+            {
+                $push: {
+                    todos: newTodo._id
+                }
+            });
         res.status(201).json({
             message: 'Todo added successfully',
             data: newTodo

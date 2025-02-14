@@ -14,3 +14,4 @@ benchmarks/graphs
 
 # Others
 fileUpload/uploads
+.env
